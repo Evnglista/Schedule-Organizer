@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Class Schedule & Wallpaper Generator</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- html2canvas Library for Image Export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <h1><span>Class Schedule</span></h1>
+    <div style="display: flex; gap: 8px;">
+      <button class="btn-screenshot" onclick="toggleWallpaperMode()">🖼️ Wallpaper</button>
+    </div>
+  </header>
+
+  <!-- Semester Selector -->
+  <div class="semester-bar">
+    <select id="semesterSelect" onchange="switchSemester()"></select>
+    <button class="btn-icon" onclick="addNewSemester()">+ Term</button>
+    <button class="btn-danger-sm" onclick="deleteCurrentTerm()">Delete</button>
+  </div>
+
+  <!-- Raw Schedule Import Box -->
+  <div class="import-card">
+    <div class="import-card-header">
+      <h3>Import Schedule</h3>
+      <button class="btn-prompt" onclick="copyMasterPrompt()">📋 Copy Prompt</button>
+    </div>
+    <p>Paste formatted text below to automatically extract and populate classes.</p>
+    <textarea id="pasteArea" class="paste-area" placeholder="Paste your text schedule here..."></textarea>
+  </div>
+
+  <!-- Column Views (Carousel on Mobile) -->
+  <div class="section-header">
+    <h2>Weekly Overview</h2>
+    <button class="btn-danger-sm" onclick="clearCurrentSemester()">Clear All</button>
+  </div>
+
+  <div class="day-pills" id="dayPills"></div>
+  <div class="columns-carousel" id="columnsCarousel"></div>
+
+  <!-- Table View -->
+  <div class="section-header" style="margin-top: 28px;">
+    <h2>Detailed Table (<span id="currentSemLabel">1st Term</span>)</h2>
+    <button class="btn-icon" onclick="scrollToElement('wallpaperCanvas')">⬆ Top</button>
+  </div>
+
+  <div class="table-container">
+    <table>
+      <thead>
+        <tr>
+          <th>Sec</th>
+          <th>Subject Title</th>
+          <th style="text-align:center;">M</th>
+          <th style="text-align:center;">T</th>
+          <th style="text-align:center;">W</th>
+          <th style="text-align:center;">TH</th>
+          <th style="text-align:center;">F</th>
+          <th style="text-align:center;">SAT</th>
+          <th style="text-align:center;">SUN</th>
+          <th>Time</th>
+          <th>Room</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody"></tbody>
+    </table>
+  </div>
+
+  <!-- Wallpaper View / Modal Overlay -->
+  <div class="wallpaper-modal" id="wallpaperModal">
+    <div class="wallpaper-controls">
+      <h3>Wallpaper Settings</h3>
+      <div class="control-grid">
+        <div>
+          <label>Header Title</label>
+          <input type="text" id="wallTitleInput" value="Class Schedule" oninput="updateWallpaperHeader()" />
+        </div>
+        <div>
+          <label>Subtitle / Degree</label>
+          <input type="text" id="wallDegreeInput" value="1st Year - 1st Sem" oninput="updateWallpaperHeader()" />
+        </div>
+        <div>
+          <label>Background Image</label>
+          <input type="file" id="wallBgInput" accept="image/*" onchange="handleImageUpload(event)" />
+        </div>
+        <div>
+          <label>Overlay Darkening</label>
+          <input type="range" id="wallOverlayInput" min="0" max="0.8" step="0.05" value="0.2" oninput="updateOverlay(this.value)" />
+        </div>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <button id="btnTransparentToggle" class="btn-toggle-transparent" onclick="toggleTransparentBgMode()">
+          ✨ Enable Pure Transparent BG
+        </button>
+      </div>
+
+      <div class="control-actions">
+        <button class="btn-download" onclick="exportWallpaperImage()">📥 Export PNG</button>
+        <button class="btn-exit" onclick="toggleWallpaperMode()">Close</button>
+      </div>
+    </div>
+
+    <!-- Canvas Frame -->
+    <div class="wallpaper-canvas-wrapper">
+      <div class="wallpaper-canvas" id="wallpaperCanvas">
+        <div class="wallpaper-overlay" id="wallpaperOverlay"></div>
+        <div class="wallpaper-header">
+          <h1 id="wallDisplayTitle">Class Schedule</h1>
+          <p id="wallDisplaySub">1st Year - 1st Sem</p>
+        </div>
+        
+        <!-- 7-Day Grid Container -->
+        <div class="wallpaper-grid" id="wallpaperGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Nav -->
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="scrollToElement('columnsCarousel')">
+      <span>📱</span>
+      <span>Overview</span>
+    </button>
+    <button class="nav-item" onclick="scrollToElement('scheduleBody')">
+      <span>📋</span>
+      <span>Table</span>
+    </button>
+    <button class="nav-item" onclick="toggleWallpaperMode()">
+      <span>🖼️</span>
+      <span>Wallpaper</span>
+    </button>
+  </nav>
+
+  <script src="script.js"></script>
+</body>
+</html>

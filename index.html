@@ -8,35 +8,34 @@
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   
   <!-- html2canvas Library for Image Export -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=2" />
 </head>
 <body>
 
   <!-- App Header -->
   <header class="app-header">
-    <h1><span>Class Schedule</span></h1>
-    <div style="display: flex; gap: 8px;">
-      <button class="btn-screenshot" onclick="toggleWallpaperMode()">🖼️ Wallpaper</button>
-    </div>
+    <h1>Class Schedule</h1>
+    <button class="btn-screenshot" type="button" onclick="toggleWallpaperMode()">Wallpaper</button>
   </header>
 
   <!-- Semester Selector -->
-  <div class="semester-bar">
-    <select id="semesterSelect" onchange="switchSemester()"></select>
-    <button class="btn-icon" onclick="addNewSemester()">+ Term</button>
-    <button class="btn-danger-sm" onclick="deleteCurrentTerm()">Delete</button>
-  </div>
+  <main>
+  <section class="semester-bar" aria-label="Semester management">
+    <select id="semesterSelect" onchange="switchSemester()" aria-label="Current semester"></select>
+    <button class="btn-icon" type="button" onclick="addNewSemester()">Add term</button>
+    <button class="btn-danger-sm" type="button" onclick="deleteCurrentTerm()">Delete</button>
+  </section>
 
   <!-- Raw Schedule Import Box -->
   <div class="import-card">
     <div class="import-card-header">
       <h3>Import Schedule</h3>
-      <button class="btn-prompt" onclick="copyMasterPrompt()">📋 Copy Prompt</button>
+      <button class="btn-prompt" type="button" onclick="copyMasterPrompt()">Copy Prompt</button>
     </div>
     <p>Paste formatted text below to automatically extract and populate classes.</p>
     <textarea id="pasteArea" class="paste-area" placeholder="Paste your text schedule here..."></textarea>
@@ -52,9 +51,9 @@
   <div class="columns-carousel" id="columnsCarousel"></div>
 
   <!-- Table View -->
-  <div class="section-header" style="margin-top: 28px;">
+  <div class="section-header table-section-header">
     <h2>Detailed Table (<span id="currentSemLabel">1st Term</span>)</h2>
-    <button class="btn-icon" onclick="scrollToElement('wallpaperCanvas')">⬆ Top</button>
+    <button class="btn-icon" type="button" onclick="scrollToElement('wallpaperCanvas')">Top</button>
   </div>
 
   <div class="table-container">
@@ -78,53 +77,81 @@
       <tbody id="scheduleBody"></tbody>
     </table>
   </div>
+  </main>
 
   <!-- Wallpaper View / Modal Overlay -->
   <div class="wallpaper-modal" id="wallpaperModal">
     <div class="wallpaper-controls">
       <h3>Wallpaper Settings</h3>
-      <div class="control-grid">
-        <div>
-          <label>Header Title</label>
-          <input type="text" id="wallTitleInput" value="Class Schedule" oninput="updateWallpaperHeader()" />
-        </div>
-        <div>
-          <label>Subtitle / Degree</label>
-          <input type="text" id="wallDegreeInput" value="1st Year - 1st Sem" oninput="updateWallpaperHeader()" />
-        </div>
-        <div>
-          <label>Background Image</label>
-          <input type="file" id="wallBgInput" accept="image/*" onchange="handleImageUpload(event)" />
-        </div>
-        <div>
-          <label>Overlay Darkening</label>
-          <input type="range" id="wallOverlayInput" min="0" max="0.8" step="0.05" value="0.2" oninput="updateOverlay(this.value)" />
-        </div>
-      </div>
+      <fieldset class="settings-group">
+        <legend>Content</legend>
+        <label for="wallTitleInput">Header title</label>
+        <input type="text" id="wallTitleInput" value="Class Schedule" oninput="updateWallpaperHeader()" />
+        <label for="wallDegreeInput">Subtitle / Degree</label>
+        <input type="text" id="wallDegreeInput" value="1st Year - 1st Sem" oninput="updateWallpaperHeader()" />
+      </fieldset>
 
-      <div style="margin-top: 10px;">
-        <button id="btnTransparentToggle" class="btn-toggle-transparent" onclick="toggleTransparentBgMode()">
-          ✨ Enable Pure Transparent BG
+      <fieldset class="settings-group">
+        <legend>Appearance</legend>
+        <label for="wallBgInput">Background image</label>
+        <input type="file" id="wallBgInput" accept="image/*" onchange="handleImageUpload(event)" />
+        <label for="wallOverlayInput">Overlay darkening</label>
+        <input type="range" id="wallOverlayInput" min="0" max="0.8" step="0.05" value="0.2" oninput="updateOverlay(this.value)" />
+        <button id="btnRoseCardsToggle" type="button" class="btn-toggle-rose" onclick="toggleRoseCardsMode()" aria-pressed="false">
+          Color black subject cards rose
         </button>
-      </div>
+        <button id="btnTransparentToggle" type="button" class="btn-toggle-transparent" onclick="toggleTransparentBgMode()" aria-pressed="false">
+          Enable transparent background
+        </button>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>Output</legend>
+        <label for="wallpaperSizeSelect">Wallpaper size</label>
+        <select id="wallpaperSizeSelect" onchange="applyWallpaperPreset(this.value)">
+          <option value="2360x1640">iPad Landscape — 2360 × 1640</option>
+          <option value="1640x2360">iPad Portrait — 1640 × 2360</option>
+          <option value="1179x2556" selected>iPhone — 1179 × 2556</option>
+          <option value="720x1624">Android Phone — 720 × 1624</option>
+          <option value="1440x3200">Android Phone — 1440 × 3200</option>
+          <option value="1920x1080">Full HD — 1920 × 1080</option>
+          <option value="2560x1440">QHD — 2560 × 1440</option>
+          <option value="3840x2160">4K UHD — 3840 × 2160</option>
+          <option value="custom">Custom resolution</option>
+        </select>
+        <div class="custom-resolution" id="customResolution">
+          <div>
+            <label for="customWidth">Width (px)</label>
+            <input type="number" id="customWidth" min="256" max="7680" value="1179" inputmode="numeric" />
+          </div>
+          <div>
+            <label for="customHeight">Height (px)</label>
+            <input type="number" id="customHeight" min="256" max="7680" value="2556" inputmode="numeric" />
+          </div>
+          <button type="button" class="btn-apply-size" onclick="applyCustomResolution()">Apply</button>
+        </div>
+        <p class="size-status" id="wallpaperSizeStatus">1179 × 2556 px</p>
+      </fieldset>
 
       <div class="control-actions">
-        <button class="btn-download" onclick="exportWallpaperImage()">📥 Export PNG</button>
-        <button class="btn-exit" onclick="toggleWallpaperMode()">Close</button>
+        <button class="btn-download" type="button" onclick="exportWallpaperImage()">Export PNG</button>
+        <button class="btn-exit" type="button" onclick="toggleWallpaperMode()">Close</button>
       </div>
     </div>
 
     <!-- Canvas Frame -->
     <div class="wallpaper-canvas-wrapper">
-      <div class="wallpaper-canvas" id="wallpaperCanvas">
-        <div class="wallpaper-overlay" id="wallpaperOverlay"></div>
-        <div class="wallpaper-header">
-          <h1 id="wallDisplayTitle">Class Schedule</h1>
-          <p id="wallDisplaySub">1st Year - 1st Sem</p>
+      <div class="wallpaper-canvas" id="wallpaperCanvas" role="img" aria-label="Wallpaper preview">
+        <div class="wallpaper-panel" id="wallpaperPanel">
+          <div class="wallpaper-overlay" id="wallpaperOverlay"></div>
+          <div class="wallpaper-header">
+            <h1 id="wallDisplayTitle">Class Schedule</h1>
+            <p id="wallDisplaySub">1st Year - 1st Sem</p>
+          </div>
+
+          <!-- 7-Day Grid Container -->
+          <div class="wallpaper-grid" id="wallpaperGrid"></div>
         </div>
-        
-        <!-- 7-Day Grid Container -->
-        <div class="wallpaper-grid" id="wallpaperGrid"></div>
       </div>
     </div>
   </div>
@@ -132,19 +159,19 @@
   <!-- Mobile Bottom Nav -->
   <nav class="bottom-nav">
     <button class="nav-item active" onclick="scrollToElement('columnsCarousel')">
-      <span>📱</span>
+      <span aria-hidden="true"></span>
       <span>Overview</span>
     </button>
     <button class="nav-item" onclick="scrollToElement('scheduleBody')">
-      <span>📋</span>
+      <span aria-hidden="true"></span>
       <span>Table</span>
     </button>
     <button class="nav-item" onclick="toggleWallpaperMode()">
-      <span>🖼️</span>
+      <span aria-hidden="true"></span>
       <span>Wallpaper</span>
     </button>
   </nav>
 
-  <script src="script.js"></script>
+  <script src="script.js?v=2"></script>
 </body>
 </html>

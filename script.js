@@ -45,6 +45,9 @@ const wallDays = [
 ];
 
 let isTransparentBgMode = false;
+let isRoseCardsMode = localStorage.getItem('wallpaper_rose_cards') === 'true';
+let wallpaperWidth = 1179;
+let wallpaperHeight = 2556;
 
 let semestersData = JSON.parse(localStorage.getItem('semesters_db')) || {
   "1st Term": []
@@ -82,7 +85,30 @@ function addNewSemester() {
       activeSem = trimmed;
       saveData();
       renderSemesterSelector();
+      const savedWallpaperResolution = JSON.parse(localStorage.getItem('wallpaper_resolution') || 'null');
+      if (savedWallpaperResolution &&
+          Number.isInteger(savedWallpaperResolution.width) &&
+          Number.isInteger(savedWallpaperResolution.height)) {
+        wallpaperWidth = savedWallpaperResolution.width;
+        wallpaperHeight = savedWallpaperResolution.height;
+        const matchingPreset = document.getElementById('wallpaperSizeSelect');
+        matchingPreset.value = `${wallpaperWidth}x${wallpaperHeight}`;
+        if (matchingPreset.selectedIndex === -1) matchingPreset.value = 'custom';
+        setWallpaperResolution(wallpaperWidth, wallpaperHeight);
+        if (matchingPreset.value === 'custom') {
+          document.getElementById('customResolution').style.display = 'grid';
+        }
+      } else {
+        document.getElementById('customResolution').style.display = 'none';
+        setWallpaperResolution(wallpaperWidth, wallpaperHeight);
+      }
       renderAll();
+
+      window.addEventListener('resize', () => {
+        if (document.body.classList.contains('wallpaper-active')) {
+          fitWallpaperPreview();
+        }
+      });
     } else {
       alert("A term with this name already exists.");
     }
@@ -100,13 +126,37 @@ function deleteCurrentTerm() {
     activeSem = Object.keys(semestersData)[0];
     saveData();
     renderSemesterSelector();
+
+    const savedWallpaperResolution = JSON.parse(localStorage.getItem('wallpaper_resolution') || 'null');
+    if (savedWallpaperResolution &&
+        Number.isInteger(savedWallpaperResolution.width) &&
+        Number.isInteger(savedWallpaperResolution.height)) {
+      wallpaperWidth = savedWallpaperResolution.width;
+      wallpaperHeight = savedWallpaperResolution.height;
+      const wallpaperSizeSelect = document.getElementById('wallpaperSizeSelect');
+      wallpaperSizeSelect.value = `${wallpaperWidth}x${wallpaperHeight}`;
+      if (wallpaperSizeSelect.selectedIndex === -1) wallpaperSizeSelect.value = 'custom';
+      setWallpaperResolution(wallpaperWidth, wallpaperHeight);
+      if (wallpaperSizeSelect.value === 'custom') {
+        document.getElementById('customResolution').style.display = 'grid';
+      } else {
+        document.getElementById('customResolution').style.display = 'none';
+      }
+    } else {
+      document.getElementById('customResolution').style.display = 'none';
+      setWallpaperResolution(wallpaperWidth, wallpaperHeight);
+    }
+
     renderAll();
+    window.addEventListener('resize', () => {
+      if (document.body.classList.contains('wallpaper-active')) fitWallpaperPreview();
+    });
   }
 }
 
 function getTimeMinutes(timeStr) {
   if (!timeStr) return 9999;
-  const startStr = timeStr.split('–')[0] || timeStr.split('-')[0] || timeStr.split('to')[0];
+  const startStr = normalizeScheduleTime(timeStr, true).split('-')[0];
   if (!startStr) return 9999;
 
   const match = startStr.trim().match(/(\d{1,2}):?(\d{2})?\s*(AM|PM|am|pm)?/i);
@@ -122,26 +172,34 @@ function getTimeMinutes(timeStr) {
   return hours * 60 + minutes;
 }
 
-function standardizeTime(rawTime) {
-  if (!rawTime) return '';
-  const parts = rawTime.split(/[-–—|to]+/i);
-  if (parts.length < 2) return rawTime.trim();
+function normalizeScheduleTime(timeStr, inferLegacyAfternoon = false) {
+  const rawTime = String(timeStr || '').trim();
+  const match = rawTime.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?\s*(?:[-–—|]|\bto\b)\s*(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (!match) return rawTime;
 
-  const parseSingleTime = (t) => {
-    let match = t.trim().match(/(\d{1,2}):?(\d{2})?\s*(AM|PM|am|pm)?/i);
-    if (!match) return t.trim();
-    let h = parseInt(match[1], 10);
-    let m = match[2] ? parseInt(match[2], 10) : 0;
-    let ampm = match[3] ? match[3].toUpperCase() : null;
-
-    if (!ampm) {
-      if (h >= 12) { ampm = 'PM'; if (h > 12) h -= 12; }
-      else { ampm = 'AM'; }
-    }
-    return `${h}:${m < 10 ? '0' + m : m}`;
+  const startPeriod = match[3] || match[6];
+  const endPeriod = match[6] || match[3];
+  const startHour = parseInt(match[1], 10);
+  const endHour = parseInt(match[4], 10);
+  const inferEndAfternoon = inferLegacyAfternoon && !startPeriod &&
+    match[1].length === 1 && startHour >= 1 && startHour <= 6 &&
+    endHour > 6 && endHour <= 11;
+  const to24Hour = (hourText, minuteText, period, inheritAfternoon = false) => {
+    let hours = parseInt(hourText, 10);
+    if (period && period.toUpperCase() === 'PM' && hours < 12) hours += 12;
+    if (period && period.toUpperCase() === 'AM' && hours === 12) hours = 0;
+    // Older imports converted afternoon times to single-digit hours without retaining PM.
+    if (!period && inferLegacyAfternoon && hourText.length === 1 && hours >= 1 && hours <= 6) hours += 12;
+    else if (!period && inheritAfternoon) hours += 12;
+    return `${String(hours).padStart(2, '0')}:${minuteText}`;
   };
 
-  return `${parseSingleTime(parts[0])}-${parseSingleTime(parts[1])}`;
+  return `${to24Hour(match[1], match[2], startPeriod)}-${to24Hour(match[4], match[5], endPeriod, inferEndAfternoon)}`;
+}
+
+function standardizeTime(rawTime) {
+  if (!rawTime) return '';
+  return normalizeScheduleTime(rawTime);
 }
 
 function parseUniversalDays(text) {
@@ -169,7 +227,7 @@ function parseUniversalDays(text) {
 function parseTextSchedule(rawText) {
   const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
   const newEntries = [];
-  const timeRegex = /(\d{1,2}:\d{2}\s*[-–—|to]+\s*\d{1,2}:\d{2})/i;
+  const timeRegex = /(\d{1,2}:\d{2}\s*(?:AM|PM)?\s*(?:[-–—|]|\bto\b)\s*\d{1,2}:\d{2}\s*(?:AM|PM)?)/i;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -301,40 +359,178 @@ function renderColumns() {
   });
 }
 
+function titleCaseWallpaperSubject(title) {
+  const text = String(title || '').trim().toLowerCase();
+  const smallWords = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'nor', 'of', 'on', 'or', 'the', 'to', 'via']);
+  const wordCount = (text.match(/[a-z0-9]+(?:['’][a-z0-9]+)*/g) || []).length;
+  let wordIndex = 0;
+
+  return text.replace(/[a-z0-9]+(?:['’][a-z0-9]+)*/g, word => {
+    const shouldCapitalize = wordIndex === 0 || wordIndex === wordCount - 1 || !smallWords.has(word);
+    wordIndex++;
+    return shouldCapitalize ? word.charAt(0).toUpperCase() + word.slice(1) : word;
+  }).replace(/\b(lec|lab|ict|it|ai|pe|mls)\b/gi, word => word.toUpperCase());
+}
+
+function getWallpaperSubjectParts(title) {
+  const text = String(title || '').trim();
+  const match = text.match(/^([\w./-]+)\s*:\s*(.+)$/);
+  return match
+    ? { code: match[1].toUpperCase(), subject: titleCaseWallpaperSubject(match[2]) }
+    : { code: '', subject: titleCaseWallpaperSubject(text) };
+}
+
+function getPhoneWallpaperCourseText(title) {
+  const text = String(title || '').trim();
+  const match = text.match(/^([\w./-]+)\s*:\s*(.+)$/);
+  return match ? `${match[1].toUpperCase()} : ${match[2].trim()}` : text;
+}
+
+function formatPhoneWallpaperTime(time) {
+  return normalizeScheduleTime(time, true).replace(/\b0(?=\d:)/g, '');
+}
+
 function renderWallpaper() {
   const grid = document.getElementById('wallpaperGrid');
   grid.innerHTML = '';
 
   const currentSubjects = semestersData[activeSem] || [];
+  const isPhoneWallpaper = wallpaperHeight / wallpaperWidth >= 1.75;
+  const visibleDays = isPhoneWallpaper
+    ? wallDays.filter(day => ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(day.code))
+    : wallDays;
+  const wallpaperPanel = document.getElementById('wallpaperPanel');
+  const maxDayCount = isPhoneWallpaper
+    ? Math.max(0, ...visibleDays.map(day =>
+      currentSubjects.filter(subject => subject.days.includes(day.code)).length
+    ))
+    : 0;
 
-  wallDays.forEach((dayObj, colIdx) => {
+  if (isPhoneWallpaper) {
+    const panelWidth = wallpaperWidth;
+    const panelHeight = wallpaperHeight;
+    const horizontalPadding = Math.max(6, panelWidth * 0.006);
+    const columnGap = Math.max(6, panelWidth * 0.008);
+    const cardGap = Math.max(6, panelHeight * 0.004);
+    const dayHeight = Math.max(10, panelWidth * 0.0115);
+    const dayGap = Math.max(2, panelHeight * 0.002);
+    const gridHeight = panelHeight * 0.62 - 25;
+    const cardHeight = maxDayCount > 1
+      ? Math.max(64, Math.floor((gridHeight - dayHeight - dayGap - cardGap * maxDayCount) / maxDayCount))
+      : Math.max(64, panelHeight * 0.045);
+    const cardWidth = Math.max(1, (panelWidth - horizontalPadding * 2 - columnGap * 4 - 2) / 5);
+
+    wallpaperPanel.style.setProperty('--wall-phone-card-height', `${cardHeight}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-card-gap', `${cardGap}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-card-padding-y', `${Math.max(6, Math.min(panelHeight * 0.006, cardHeight * 0.08))}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-card-padding-x', `${Math.max(4, panelWidth * 0.006)}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-time-size', `${Math.max(10, Math.min(cardWidth * 0.14, cardHeight * 0.085))}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-course-size', `${Math.max(9, Math.min(cardWidth * 0.12, cardHeight * 0.07))}px`);
+    wallpaperPanel.style.setProperty('--wall-phone-meta-size', `${Math.max(8, Math.min(cardWidth * 0.08, cardHeight * 0.055))}px`);
+  }
+
+  visibleDays.forEach((dayObj, colIdx) => {
     const daySubjects = currentSubjects
       .filter(s => s.days.includes(dayObj.code))
       .sort((a, b) => getTimeMinutes(a.time) - getTimeMinutes(b.time));
 
     const colEl = document.createElement('div');
     colEl.className = 'wall-col';
+    const dayHeader = document.createElement('div');
+    dayHeader.className = 'wall-day-head';
+    dayHeader.textContent = dayObj.label;
+    colEl.appendChild(dayHeader);
 
-    let cardsHtml = '';
     daySubjects.forEach((s, itemIdx) => {
       const themeClass = (colIdx + itemIdx) % 2 === 0 ? 'light' : 'dark';
-      
-      cardsHtml += `
-        <div class="wall-card-item ${themeClass}">
-          <div class="wall-card-time">${s.time}</div>
-          <div class="wall-card-title">${s.title}</div>
-          <div class="wall-card-room">${s.room || s.section || ''}</div>
-        </div>
-      `;
-    });
+      const card = document.createElement('article');
+      card.className = `wall-card-item ${themeClass}`;
 
-    colEl.innerHTML = `
-      <div class="wall-day-head">${dayObj.label}</div>
-      ${cardsHtml}
-    `;
+      const time = document.createElement('div');
+      time.className = 'wall-card-time';
+      const normalizedTime = isPhoneWallpaper
+        ? formatPhoneWallpaperTime(s.time)
+        : normalizeScheduleTime(s.time, true);
+      time.textContent = isPhoneWallpaper
+        ? normalizedTime
+        : (isRoseCardsMode ? normalizedTime.replace('-', ' – ') : normalizedTime);
+      card.appendChild(time);
+
+      if (isPhoneWallpaper) {
+        const course = document.createElement('div');
+        course.className = 'wall-card-course';
+        course.textContent = getPhoneWallpaperCourseText(s.title);
+        card.appendChild(course);
+
+        if (s.section && String(s.section).trim()) {
+          const section = document.createElement('div');
+          section.className = 'wall-card-section';
+          section.textContent = `(${String(s.section).trim()})`;
+          card.appendChild(section);
+        }
+
+        if (s.room && String(s.room).trim()) {
+          const room = document.createElement('div');
+          room.className = 'wall-card-room';
+          room.textContent = String(s.room).trim();
+          card.appendChild(room);
+        }
+      } else {
+        const subjectParts = getWallpaperSubjectParts(s.title);
+        const title = document.createElement('div');
+        title.className = 'wall-card-title';
+        if (subjectParts.code) {
+          const code = document.createElement('div');
+          code.className = 'wall-card-code';
+          code.textContent = subjectParts.code;
+          title.appendChild(code);
+        }
+
+        const subject = document.createElement('div');
+        subject.className = 'wall-card-subject';
+        subject.textContent = subjectParts.subject;
+        title.appendChild(subject);
+        card.appendChild(title);
+
+        const metadata = [s.section && `SEC ${s.section}`, s.room].filter(Boolean).join(' · ');
+        if (metadata) {
+          const room = document.createElement('div');
+          room.className = 'wall-card-room';
+          room.textContent = metadata;
+          card.appendChild(room);
+        }
+      }
+
+      colEl.appendChild(card);
+    });
 
     grid.appendChild(colEl);
   });
+
+  if (isPhoneWallpaper && maxDayCount > 1) {
+    const canvas = document.getElementById('wallpaperCanvas');
+    const canvasRect = canvas.getBoundingClientRect();
+    const scale = canvasRect.height / canvas.offsetHeight;
+    const fullestColumn = [...grid.children].reduce((fullest, column) =>
+      column.querySelectorAll('.wall-card-item').length > fullest.querySelectorAll('.wall-card-item').length
+        ? column
+        : fullest
+    );
+    const cards = [...fullestColumn.querySelectorAll('.wall-card-item')];
+
+    if (scale > 0 && cards.length === maxDayCount) {
+      const firstCardTop = cards[0].getBoundingClientRect().top;
+      const cardGap = parseFloat(getComputedStyle(fullestColumn).rowGap);
+      const fittedHeight = (
+        canvasRect.bottom - 16 * scale - firstCardTop - cardGap * scale * (cards.length - 1)
+      ) / (cards.length * scale);
+
+      wallpaperPanel.style.setProperty(
+        '--wall-phone-card-height',
+        `${Math.max(64, fittedHeight)}px`
+      );
+    }
+  }
 }
 
 function updateWallpaperHeader() {
@@ -350,7 +546,9 @@ function handleImageUpload(e) {
   if (file) {
     const reader = new FileReader();
     reader.onload = function(evt) {
-      document.getElementById('wallpaperCanvas').style.backgroundImage = `url('${evt.target.result}')`;
+      const panel = document.getElementById('wallpaperPanel');
+      panel.style.backgroundImage = `url('${evt.target.result}')`;
+      panel.classList.add('has-background-image');
     };
     reader.readAsDataURL(file);
   }
@@ -368,41 +566,195 @@ function toggleTransparentBgMode() {
   if (isTransparentBgMode) {
     canvas.classList.add('transparent-mode');
     toggleBtn.classList.add('active');
-    toggleBtn.textContent = '✔️ Pure Transparent Active';
+    toggleBtn.textContent = 'Transparent background active';
+    toggleBtn.setAttribute('aria-pressed', 'true');
   } else {
     canvas.classList.remove('transparent-mode');
     toggleBtn.classList.remove('active');
-    toggleBtn.textContent = '✨ Enable Pure Transparent BG';
+    toggleBtn.textContent = 'Enable transparent background';
+    toggleBtn.setAttribute('aria-pressed', 'false');
   }
+}
+
+function setRoseCardsMode(enabled) {
+  isRoseCardsMode = enabled;
+  document.getElementById('wallpaperPanel').classList.toggle('rose-cards', enabled);
+  document.getElementById('wallpaperCanvas').classList.toggle('rose-cards-mode', enabled);
+
+  const toggleButton = document.getElementById('btnRoseCardsToggle');
+  toggleButton.classList.toggle('active', enabled);
+  toggleButton.setAttribute('aria-pressed', String(enabled));
+  toggleButton.textContent = enabled ? 'Restore black subject cards' : 'Color black subject cards rose';
+  localStorage.setItem('wallpaper_rose_cards', String(enabled));
+}
+
+function toggleRoseCardsMode() {
+  setRoseCardsMode(!isRoseCardsMode);
+  setWallpaperResolution(wallpaperWidth, wallpaperHeight);
+  renderWallpaper();
 }
 
 function toggleWallpaperMode() {
   document.body.classList.toggle('wallpaper-active');
   if (document.body.classList.contains('wallpaper-active')) {
+    setWallpaperResolution(wallpaperWidth, wallpaperHeight);
     updateWallpaperHeader();
     renderWallpaper();
+    requestAnimationFrame(fitWallpaperPreview);
   }
+}
+
+function applyWallpaperPreset(value) {
+  const customResolution = document.getElementById('customResolution');
+  if (value === 'custom') {
+    customResolution.style.display = 'grid';
+    return;
+  }
+
+  customResolution.style.display = 'none';
+  const [width, height] = value.split('x').map(Number);
+  setWallpaperResolution(width, height);
+  renderWallpaper();
+}
+
+function applyCustomResolution() {
+  const widthInput = document.getElementById('customWidth');
+  const heightInput = document.getElementById('customHeight');
+  const width = Number(widthInput.value);
+  const height = Number(heightInput.value);
+
+  if (!Number.isInteger(width) || !Number.isInteger(height) ||
+      width < 256 || height < 256 || width > 7680 || height > 7680) {
+    alert('Enter a width and height between 256 and 7680 pixels.');
+    return;
+  }
+
+  setWallpaperResolution(width, height);
+  renderWallpaper();
+}
+
+function setWallpaperResolution(width, height) {
+  wallpaperWidth = width;
+  wallpaperHeight = height;
+
+  const canvas = document.getElementById('wallpaperCanvas');
+  const panel = document.getElementById('wallpaperPanel');
+  const isTallPhoneWallpaper = height / width >= 1.75;
+  const isLandscapeWallpaper = width > height;
+  const landscapePanelHeightRatio = isRoseCardsMode || width / height >= 1.7 ? 0.9 : 0.7;
+  const panelWidth = isLandscapeWallpaper ? width * 0.94 : width;
+  const panelHeight = isLandscapeWallpaper ? height * landscapePanelHeightRatio : height;
+  const typographyHeight = isLandscapeWallpaper ? height * 0.70 : panelHeight;
+  const headerGapRatio = isTallPhoneWallpaper ? 0.006 : (isLandscapeWallpaper ? 0.021 : 0.015);
+  const gridTopInsetRatio = isTallPhoneWallpaper ? 0.01 : 0.025;
+  panel.classList.toggle('phone-compact-layout', isTallPhoneWallpaper);
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  panel.style.width = isLandscapeWallpaper ? '94%' : '100%';
+  panel.style.height = isLandscapeWallpaper ? `${landscapePanelHeightRatio * 100}%` : '100%';
+
+  panel.style.setProperty('--wall-padding-x', `${Math.max(6, panelWidth * 0.006)}px`);
+  panel.style.setProperty('--wall-padding-y', `${Math.max(8, panelHeight * 0.012)}px`);
+  panel.style.setProperty('--wall-padding-bottom', `${isLandscapeWallpaper ? 0 : Math.max(8, panelHeight * 0.012)}px`);
+  panel.style.setProperty('--wall-title-size', `${Math.max(18, panelWidth * 0.027)}px`);
+  panel.style.setProperty('--wall-sub-size', `${Math.max(10, panelWidth * 0.011)}px`);
+  panel.style.setProperty('--wall-header-inset', `${isLandscapeWallpaper || isTallPhoneWallpaper ? 0 : Math.max(12, panelHeight * 0.03)}px`);
+  panel.style.setProperty('--wall-header-gap', `${Math.max(6, panelHeight * headerGapRatio)}px`);
+  panel.style.setProperty('--wall-sub-gap', `${Math.max(4, panelHeight * 0.003)}px`);
+  panel.style.setProperty('--wall-grid-gap', `${Math.max(3, panelWidth * 0.002)}px`);
+  panel.style.setProperty('--wall-grid-inset-top', `${Math.max(8, panelHeight * gridTopInsetRatio)}px`);
+  panel.style.setProperty('--wall-grid-inset-bottom', `${isLandscapeWallpaper ? 0 : Math.max(16, panelHeight * (isTallPhoneWallpaper ? 0.02 : 0.05))}px`);
+  panel.style.setProperty('--wall-phone-header-top', `${panelHeight * 0.345}px`);
+  panel.style.setProperty('--wall-phone-grid-top', `${panelHeight * 0.38}px`);
+  panel.style.setProperty('--wall-phone-grid-bottom', '1rem');
+  panel.style.setProperty('--wall-phone-column-gap', `${Math.max(6, panelWidth * 0.008)}px`);
+  panel.style.setProperty('--wall-phone-card-gap', `${Math.max(6, panelHeight * 0.004)}px`);
+  panel.style.setProperty('--wall-card-gap', `${Math.max(3, panelHeight * 0.004)}px`);
+  panel.style.setProperty('--wall-card-inner-gap', `${Math.max(3, panelHeight * 0.002)}px`);
+  panel.style.setProperty('--wall-day-size', `${Math.max(10, panelWidth * 0.0115)}px`);
+  panel.style.setProperty('--wall-day-gap', `${Math.max(2, panelHeight * 0.002)}px`);
+  panel.style.setProperty('--wall-card-y', `${Math.max(8, panelHeight * 0.006)}px`);
+  panel.style.setProperty('--wall-card-x', `${Math.max(8, panelWidth * 0.004)}px`);
+  panel.style.setProperty('--wall-card-min-height', `${Math.max(38, panelHeight * 0.055)}px`);
+  panel.style.setProperty('--wall-time-size', `${Math.max(9, Math.min(panelWidth * 0.0105, typographyHeight * 0.022))}px`);
+  panel.style.setProperty('--wall-card-title-size', `${Math.max(12, Math.min(panelWidth * 0.011, typographyHeight * 0.021))}px`);
+  panel.style.setProperty('--wall-room-size', `${Math.max(8, Math.min(panelWidth * 0.008, typographyHeight * 0.017))}px`);
+
+  document.getElementById('customWidth').value = width;
+  document.getElementById('customHeight').value = height;
+  document.getElementById('wallpaperSizeStatus').textContent = `${width} × ${height} px`;
+  localStorage.setItem('wallpaper_resolution', JSON.stringify({ width, height }));
+  fitWallpaperPreview();
+}
+
+function fitWallpaperPreview() {
+  const canvas = document.getElementById('wallpaperCanvas');
+  const wrapper = canvas.parentElement;
+  if (!canvas || !wrapper || !document.body.classList.contains('wallpaper-active')) return;
+
+  const availableWidth = Math.max(1, wrapper.clientWidth - 24);
+  const availableHeight = Math.max(1, wrapper.clientHeight - 24);
+  const scale = Math.min(availableWidth / wallpaperWidth, availableHeight / wallpaperHeight);
+  canvas.style.transform = `scale(${scale})`;
 }
 
 function exportWallpaperImage() {
   const targetElement = document.getElementById('wallpaperCanvas');
+  const exportUsesRoseTheme = isRoseCardsMode;
   
   if (!window.html2canvas) {
     alert("Image export library is loading... Please try again in a moment.");
     return;
   }
 
-  html2canvas(targetElement, {
-    scale: 3, 
-    useCORS: true,
-    allowTaint: true,
-    backgroundColor: null
-  }).then(canvas => {
+  const originalTransform = targetElement.style.transform;
+  targetElement.style.transform = 'none';
+
+  const captureExport = async () => {
+    if (document.fonts && document.fonts.ready) {
+      await document.fonts.ready;
+    }
+
+    return html2canvas(targetElement, {
+      scale: 1,
+      width: wallpaperWidth,
+      height: wallpaperHeight,
+      windowWidth: wallpaperWidth,
+      windowHeight: wallpaperHeight,
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: isTransparentBgMode ? null : (exportUsesRoseTheme ? '#FFF8FA' : '#000000'),
+      onclone: clonedDocument => {
+        const wallpaperPanel = clonedDocument.getElementById('wallpaperPanel');
+        if (!wallpaperPanel.classList.contains('phone-compact-layout')) {
+          const wallpaperGrid = clonedDocument.getElementById('wallpaperGrid');
+          wallpaperGrid.style.overflow = 'visible';
+          clonedDocument.querySelectorAll('.wall-col:last-child').forEach(column => {
+            column.style.overflow = 'visible';
+            column.querySelectorAll('.wall-card-item').forEach(card => {
+              card.style.boxSizing = 'border-box';
+              card.style.alignSelf = 'flex-start';
+              card.style.width = 'calc(100% + var(--wall-padding-x) + 1px)';
+            });
+          });
+        }
+        if (!exportUsesRoseTheme) {
+          clonedDocument.querySelectorAll('.wall-card-item').forEach(card => {
+            card.style.boxShadow = 'none';
+          });
+        }
+      }
+    });
+  };
+
+  captureExport().then(canvas => {
+    targetElement.style.transform = originalTransform;
     const link = document.createElement('a');
     link.download = `Schedule_Wallpaper_${activeSem.replace(/\s+/g, '_')}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
   }).catch(err => {
+    targetElement.style.transform = originalTransform;
     console.error("Export Error:", err);
     alert("Could not export wallpaper image.");
   });
@@ -452,3 +804,4 @@ function renderAll() {
 
 renderSemesterSelector();
 renderAll();
+setRoseCardsMode(isRoseCardsMode);
